@@ -1,20 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Kursach
 {
     public partial class ChatForm : Form
     {
-        delegate void TextDelegate(string text);
-        delegate void ComboBoxClearer();
+        delegate void TextDelegate(string text);//делегат
+        delegate void ComboBoxClearer();//делегат
+        String alfavit = "qwertyuiopasdfghjklzxcvbnmйцукенгшщзхъфывапролджэячсмитьбю";//алфавит
         Listener listener;
         string TempNum = String.Empty;
         public ChatForm()
@@ -24,20 +20,53 @@ namespace Kursach
             Thread ListenThread = new Thread(Listen);
             ListenThread.Start();
         }
-
+        /// <summary>
+        /// Проверяет, есть ли в нашей строке эти символы
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <returns></returns>
+        private bool LetterCheck(string msg)
+        {
+            foreach(var ch in alfavit)
+            {
+                foreach(var chh in msg)
+                {
+                    if (chh.ToString().ToLower().Equals(ch.ToString().ToLower()))
+                        return false;
+                }
+            }
+            return true;
+        }
+        /// <summary>
+        /// Отправить сообщение
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void buttonSend_Click(object sender, EventArgs e)
         {
-            listener.client.Client.Send(Encoding.ASCII.GetBytes($"Command:SendMessage\r\nMessage:{textBoxMessage.Text}\r\nGroupId:{comboBoxGroupIds.SelectedItem.ToString()}"));
+            if(String.IsNullOrWhiteSpace(textBoxMessage.Text))
+            {
+                MessageBox.Show($"Введите сообщение", $"Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (comboBoxGroupIds.SelectedItem != null)
+                listener.client.Client.Send(Encoding.UTF8.GetBytes($"Command:SendMessage\r\nMessage:{textBoxMessage.Text}\r\nGroupId:{comboBoxGroupIds.SelectedItem.ToString()}"));
+            else
+                MessageBox.Show($"Вы не подключены ни к одной группе", $"Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+
+        /// <summary>
+        /// Сравнивает запросы
+        /// </summary>
         public void Listen()
         {
-            listener.client.Client.Send(Encoding.ASCII.GetBytes($"Command:GetGroups"));
-            while (true)
+            listener.client.Client.Send(Encoding.UTF8.GetBytes($"Command:GetGroups"));//получаем список групп
+            while (true)// тоже что и в ClientObject
             {
                 byte[] rawdata = new byte[1024];
                 string headerStr = String.Empty;
                 listener.client.Client.Receive(rawdata);
-                headerStr = Encoding.ASCII.GetString(rawdata, 0, rawdata.Length);
+                headerStr = Encoding.UTF8.GetString(rawdata, 0, rawdata.Length);
                 string[] splitted = headerStr.Split(new string[] { "\r\n" }, StringSplitOptions.None);
                 Dictionary<string, string> headers = new Dictionary<string, string>();
                 foreach (string s in splitted)
@@ -58,6 +87,14 @@ namespace Kursach
                     {
                         TextBoxText("Вы были подключены к чату\r\n");
                     }
+                    if (Command.Equals("GroupCreated"))
+                    {
+                        MessageBox.Show($"Группа успешно создана", $"Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    if (Command.Equals("GroupExists"))
+                    {
+                        MessageBox.Show($"Такая группа уже существует", $"Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                     if (Command.Equals("ConnectedToGroup"))
                     {
                         var grid = headers["GroupId"].Trim('\0');
@@ -75,23 +112,33 @@ namespace Kursach
                     }
                     if (Command.Equals("Refresh"))
                     {
-                        listener.client.Client.Send(Encoding.ASCII.GetBytes($"Command:GetGroups"));
+                        listener.client.Client.Send(Encoding.UTF8.GetBytes($"Command:GetGroups"));
                     }
                 }
             }
         }
+
+        /// <summary>
+        /// Добавляет время и текст в чат
+        /// </summary>
+        /// <param name="text"></param>
         private void TextBoxText(string text)
         {
-            if (InvokeRequired)
+            if (InvokeRequired)//нужно ли нам вызывать делегат
             {
                 BeginInvoke(new TextDelegate(TextBoxText), new object[] { text });
                 return;
             }
             else
             {
-                textBoxChat.Text+=text;
+                textBoxChat.Text += $"[{DateTime.Now.Hour}:{DateTime.Now.Minute}] {text}\n";
             }
         }
+
+        /// <summary>
+        /// Добавляет id группы в список
+        /// </summary>
+        /// <param name="text"></param>
         private void ComboBoxAdd(string text)
         {
             if (InvokeRequired)
@@ -104,6 +151,10 @@ namespace Kursach
                 comboBoxGroupIds.Items.Add(text);
             }
         }
+
+        /// <summary>
+        /// Очищает список id
+        /// </summary>
         private void ComboBoxClear()
         {
             if (InvokeRequired)
@@ -116,24 +167,52 @@ namespace Kursach
                 comboBoxGroupIds.Items.Clear();
             }
         }
+
+        /// <summary>
+        /// Закрывает форму
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void ChatForm_FormClosed(object sender, FormClosedEventArgs e)
         {
             Application.Exit();
         }
-
+       
+        /// <summary>
+        /// Создает группу
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void buttonNewGroup_Click(object sender, EventArgs e)
         {
-            listener.client.Client.Send(Encoding.ASCII.GetBytes($"Command:CreateGroup\r\nGroupId:{TempNum}"));
+            if (!String.IsNullOrWhiteSpace(textBoxID.Text) && LetterCheck(TempNum))
+                listener.client.Client.Send(Encoding.UTF8.GetBytes($"Command:CreateGroup\r\nGroupId:{TempNum}"));
+            else
+            {
+                MessageBox.Show($"Введите нормальный номер группы", $"Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                textBoxID.Text = String.Empty;
+            }               
         }
 
+        /// <summary>
+        /// Вызывается, когда меняются данные в текстбоксе
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void textBoxID_TextChanged(object sender, EventArgs e)
         {
             TempNum = textBoxID.Text;
         }
 
+        /// <summary>
+        /// Как только выбираем группу шлет на сервер
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void comboBoxGroupIds_SelectedIndexChanged(object sender, EventArgs e)
         {
-            listener.client.Client.Send(Encoding.ASCII.GetBytes($"Command:JoinGroup\r\nGroupId:{comboBoxGroupIds.SelectedItem.ToString()}"));
+            listener.client.Client.Send(Encoding.UTF8.GetBytes($"Command:JoinGroup\r\nGroupId:{comboBoxGroupIds.SelectedItem.ToString()}"));
         }
+
     }
 }

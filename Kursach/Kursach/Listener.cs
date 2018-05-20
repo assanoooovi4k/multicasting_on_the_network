@@ -2,6 +2,9 @@
 
 namespace Kursach
 {
+/// <summary>
+/// Singleton, ожидает подключения("слушает")
+/// </summary>
     class Listener
     {
         private static Listener instance;

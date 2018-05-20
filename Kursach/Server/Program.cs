@@ -11,10 +11,9 @@ namespace Server
         {
             try
             {
-                Authorization.GetData();
-                server = new ServerObject();
-                listenThread = new Thread(new ThreadStart(server.Listen));
-                listenThread.Start();
+                server = new ServerObject();//создание обьекта
+                listenThread = new Thread(new ThreadStart(server.Listen));//создание потока
+                listenThread.Start();//запуск потока
             }
             catch (Exception ex)
             {

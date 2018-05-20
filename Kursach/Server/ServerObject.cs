@@ -10,15 +10,18 @@ namespace Server
 {
     public class ServerObject
     {
-        static TcpListener tcpListener;
-        List<ClientObject> clients = new List<ClientObject>();
+        static TcpListener tcpListener;//чтобы слушать входящие подключения
+        List<ClientObject> clients = new List<ClientObject>();//список пользователей
         Grups Groups = new Grups();
+        /// <summary>
+        /// Контейнер групп
+        /// </summary>
         private class Grups
         {
             private List<Group> grups = new List<Group>();
             public void Add(ClientObject cl, int grupid)
             {
-                grups.Find(x => x.GroupId == grupid).Add(cl);
+                grups.Find(x => x.GroupId == grupid).Add(cl);//прогоняет через все группы и добавляет пользователя
             }
             public void Remove(ClientObject cl, int grupid)
             {
@@ -28,6 +31,12 @@ namespace Server
             {
                 grups.Add(new Group() { GroupId = grupid, Clients = new List<ClientObject>() });
             }
+
+            /// <summary>
+            /// Проверить на существование группы
+            /// </summary>
+            /// <param name="grupid"></param>
+            /// <returns></returns>
             public bool Exists(int grupid)
             {
                 foreach(var g in grups)
@@ -37,6 +46,11 @@ namespace Server
                 }
                 return false;
             }
+
+            /// <summary>
+            /// Получить список всех доступных групп через пробел
+            /// </summary>
+            /// <returns></returns>
             public string Get()
             {
                 string st = String.Empty;
@@ -47,10 +61,13 @@ namespace Server
                 return st;
             }
         }
+        /// <summary>
+        /// Группа
+        /// </summary>
         private class Group
         {
             public Int32 GroupId;
-            public List<ClientObject> Clients;
+            public List<ClientObject> Clients;//массив клиентов в группе
             public void Add(ClientObject cl)
             {
                 Clients.Add(cl);
@@ -60,7 +77,13 @@ namespace Server
                 Clients.Remove(cl);
             }
         }
-        protected internal void AddToGroup(ClientObject cl, int grupid)
+
+        /// <summary>
+        /// Добавить пользователя в группы
+        /// </summary>
+        /// <param name="cl"></param>
+        /// <param name="grupid"></param>
+        protected internal void AddToGroup(ClientObject cl, int grupid)//интернал виден только внутри namespase Server
         {
             if (cl.GroupId == grupid)
                 return;
@@ -70,16 +93,36 @@ namespace Server
                 cl.GroupId = grupid;
             }
         }
+
+        /// <summary>
+        /// Передать список всех групп
+        /// </summary>
+        /// <param name="id"></param>
         protected internal void GetGroups(string id)
         {
             string header = $"Command:Groups\r\nList:{Groups.Get()}";
             SendMessage(header, id);
         }
-        protected internal void CreateGroup(int grupid)
+
+        /// <summary>
+        /// Создать группу
+        /// </summary>
+        /// <param name="grupid"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        protected internal bool CreateGroup(int grupid, string id)
         {
             if (!Groups.Exists(grupid))
+            {
                 Groups.AddNewGroup(grupid);
+                SendMessage("Command:GroupCreated", id);
+                return true;
+            }
+            else
+                SendMessage("Command:GroupExists", id);
+            return false;
         }
+
         /// <summary>
         /// Добавить соеденение
         /// </summary>
@@ -88,6 +131,7 @@ namespace Server
         {
             clients.Add(clientObject);
         }
+
         /// <summary>
         /// Разорвать соеденение от определенного пользователя
         /// </summary>
@@ -98,20 +142,21 @@ namespace Server
             if (client != null)
                 clients.Remove(client);
         }
+
         /// <summary>
-        /// Начать слушать сокет
+        /// Cлушать сокет
         /// </summary>
         protected internal void Listen()
         {
             try
             {
-                tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), 8888);
+                tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), 8888);//инициализация
                 tcpListener.Start();
-                Console.WriteLine("Server started. Waiting for connections...");
-                while (true)
+                Console.WriteLine("Server started. Waiting for connections...");          
+                while (true)//начинаем слушать сокет, пока не будет подключения
                 {
                     TcpClient tcpClient = tcpListener.AcceptTcpClient();
-                    Console.WriteLine($"Incoming connection from {tcpClient.Client.RemoteEndPoint}");
+                    Console.WriteLine($"Incoming connection from {tcpClient.Client.RemoteEndPoint}");//выводит ip пользователя
                     ClientObject clientObject = new ClientObject(tcpClient, this);
                     Thread clientThread = new Thread(new ThreadStart(clientObject.Process));
                     clientThread.Start();
@@ -123,32 +168,44 @@ namespace Server
                 Disconnect();
             }
         }
-        /// <summary>Отправить сообщение всем пользователям указанной группы</summary>
-        /// <param name="message">Текст сообщения</param>
-        /// <param name="id">ID пользователя</param>
+
+        /// <summary>
+        /// Отправить сообщение всем пользователям указанной группы
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="id"></param>
+        /// <param name="groupid"></param>
         protected internal void BroadcastMessage(string message, string id, int groupid)
         {
-            byte[] data = Encoding.ASCII.GetBytes(message);
+            byte[] data = Encoding.UTF8.GetBytes(message);
             for (int i = 0; i < clients.Count; i++)
             {
                 if(clients[i].GroupId.Equals(groupid))
                     clients[i].client.Client.Send(data);
             }
         }
+
+        /// <summary>
+        /// Отправить всем
+        /// </summary>
+        /// <param name="message"></param>
         protected internal void BroadcastAll(string message)
         {
-            byte[] data = Encoding.ASCII.GetBytes(message);
+            byte[] data = Encoding.UTF8.GetBytes(message);
             for (int i = 0; i < clients.Count; i++)
             {
                 clients[i].client.Client.Send(data);
             }
         }
-        /// <summary>Отправить сообщение определенному пользователю</summary>
-        /// <param name="message">Текст сообщения</param>
-        /// <param name="id">ID пользователя</param>
+
+        /// <summary>
+        /// Отправить сообщение определенному пользователю
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="id"></param>
         protected internal void SendMessage(string message, string id)
         {
-            byte[] data = Encoding.ASCII.GetBytes(message);
+            byte[] data = Encoding.UTF8.GetBytes(message);
             for (int i = 0; i < clients.Count; i++)
             {
                 if (clients[i].Id == id)
@@ -158,6 +215,7 @@ namespace Server
                 }
             }
         }
+
         /// <summary>
         /// Отключить всех пользователей
         /// </summary>
